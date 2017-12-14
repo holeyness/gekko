@@ -221,16 +221,58 @@ Trader.prototype.cancelOrder = function(order, callback) {
     this.gdax.cancelOrder(order, this.normalizeResult(result));
 }
 
+var err_cache = {};
+var response_cache = {};
+var data_cache = {};
+
 Trader.prototype.getTrades = function(since, callback, descending) {
     var args = _.toArray(arguments);
     var lastScan = 0;
+    var delay = 334;
+    var current_page = 100;
+    var gdax_client = this.gdax_public;
+
+
+    function cacheOrFetch(page_num, callback) {
+      if (page_num in response_cache) {
+        console.log("cached, page: ", page_num);
+        callback(err_cache[page_num], response_cache[page_num], data_cache[page_num]);
+      } else {
+        console.log("requesting", page_num);
+        // retrieve from api
+        setTimeout(function(){
+            gdax_client.getProductTrades({'after': page_num, limit: batchSize}, callback);
+        }, delay);
+      }
+    }
 
     var process = function(err, response, data) {
-        if (data && data.message)
-            err = new Error(data.message);
-            
-        if(err)
-            return this.retry(this.getTrades, args);
+
+        if (response.statusCode === 429){
+          // rate limit blown, retrying current one
+          delay *= 2;
+          setTimeout(function() {
+              gdax_client.getProductTrades({'after': current_page}, process);
+          }, delay);
+          return;
+
+        } else if (response.statusCode !== 200 || !data || data.length < 1){
+          console.log(response);
+          console.log("retrying");
+          return this.retry(this.getTrades, args);
+        }
+
+        // We are good
+        if (delay > 434) {
+          delay -= 100;
+        }
+
+        // Caching
+        console.log("stored in cache: ", current_page);
+        err_cache[current_page] = err;
+        response_cache[current_page] = response;
+        data_cache[current_page] = data;
+
 
         var result = _.map(data, function(trade) {
             return {
@@ -252,7 +294,8 @@ Trader.prototype.getTrades = function(since, callback, descending) {
                     this.scanbackTid = last.trade_id;
                 } else {
                     log.debug('Scanning backwards...' + last.time);
-                    this.gdax_public.getProductTrades({after: last.trade_id - (batchSize * lastScan) , limit: batchSize}, process);
+                    current_page = last.trade_id - (batchSize * lastScan);
+                    cacheOrFetch(current_page, process);
                     lastScan++;
                     if (lastScan > 100) {
                         lastScan = 10;
@@ -270,9 +313,10 @@ Trader.prototype.getTrades = function(since, callback, descending) {
                 } else {
                     this.scanbackResults = this.scanbackResults.concat(result.reverse());
 
-                    if (this.scanbackTid != first.trade_id) {
+                    if (this.scanbackTid !== first.trade_id) {
                         this.scanbackTid = first.trade_id;
-                        this.gdax_public.getProductTrades({after: this.scanbackTid + batchSize + 1, limit: batchSize}, process);
+                        current_page = this.scanbackTid + batchSize + 1;
+                        cacheOrFetch(current_page, process);
                     } else {
                         this.scanback = false;
                         this.scanbackTid = 0;
@@ -292,16 +336,20 @@ Trader.prototype.getTrades = function(since, callback, descending) {
     if (since || this.scanback) {
         this.scanback = true;
         if (this.scanbackTid) {
-            this.gdax_public.getProductTrades({after: this.scanbackTid + batchSize + 1, limit: batchSize}, process);
+            current_page = this.scanbackTid + batchSize + 1;
+            cacheOrFetch(current_page, process);
         } else {
             log.debug('Scanning back in the history needed...');
             log.debug(moment.utc(since).format());
-            this.gdax_public.getProductTrades({limit: batchSize}, process);
+            setTimeout(function(){
+                gdax_client.getProductTrades({limit: batchSize}, process);
+            }, delay);
         }
     } else {
-        this.gdax_public.getProductTrades({limit: batchSize}, process);
+        setTimeout(function(){
+            gdax_client.getProductTrades({limit: batchSize}, process);
+        }, delay);
     }
-
 }
 
 Trader.prototype.getMaxDecimalsNumber = function (number, decimalLimit = 8) {
