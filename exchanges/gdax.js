@@ -228,27 +228,15 @@ var data_cache = {};
 Trader.prototype.getTrades = function(since, callback, descending) {
     var args = _.toArray(arguments);
     var lastScan = 0;
-    var delay = 334;
-    var current_page = 100;
+    var delay = 333;
+    var current_page = 12162599;
     var gdax_client = this.gdax_public;
 
 
-    function cacheOrFetch(page_num, callback) {
-      if (page_num in response_cache) {
-        console.log("cached, page: ", page_num);
-        callback(err_cache[page_num], response_cache[page_num], data_cache[page_num]);
-      } else {
-        console.log("requesting", page_num);
-        // retrieve from api
-        setTimeout(function(){
-            gdax_client.getProductTrades({'after': page_num, limit: batchSize}, callback);
-        }, delay);
-      }
-    }
-
     var process = function(err, response, data) {
 
-        if (response.statusCode === 429){
+        if (response.statusCode != 200){
+          console.log("uh oh: ", response.statusCode);
           // rate limit blown, retrying current one
           delay *= 2;
           setTimeout(function() {
@@ -256,23 +244,12 @@ Trader.prototype.getTrades = function(since, callback, descending) {
           }, delay);
           return;
 
-        } else if (response.statusCode !== 200 || !data || data.length < 1){
-          console.log(response);
-          console.log("retrying");
-          return this.retry(this.getTrades, args);
         }
 
         // We are good
-        if (delay > 434) {
-          delay -= 100;
+        if (delay > 133) {
+          delay -= 25;
         }
-
-        // Caching
-        console.log("stored in cache: ", current_page);
-        err_cache[current_page] = err;
-        response_cache[current_page] = response;
-        data_cache[current_page] = data;
-
 
         var result = _.map(data, function(trade) {
             return {
@@ -294,10 +271,14 @@ Trader.prototype.getTrades = function(since, callback, descending) {
                     this.scanbackTid = last.trade_id;
                 } else {
                     log.debug('Scanning backwards...' + last.time);
+
                     current_page = last.trade_id - (batchSize * lastScan);
-                    cacheOrFetch(current_page, process);
+                    log.debug("current page: ", current_page);
+                    setTimeout(function(){
+                      gdax_client.getProductTrades({'after': current_page, limit: batchSize}, process);
+                    }, delay);
                     lastScan++;
-                    if (lastScan > 100) {
+                    if (lastScan > 500) {
                         lastScan = 10;
                     }
                 }
@@ -306,6 +287,7 @@ Trader.prototype.getTrades = function(since, callback, descending) {
             if (this.scanbackTid) {
             // if scanbackTid is set we need to move forward again
                 log.debug('Backwards: ' + last.time + ' (' + last.trade_id + ') to ' + first.time + ' (' + first.trade_id + ')');
+                log.debug('Page num: ', current_page);
 
                 if (this.import) {
                     this.scanbackTid = first.trade_id;
@@ -316,7 +298,9 @@ Trader.prototype.getTrades = function(since, callback, descending) {
                     if (this.scanbackTid !== first.trade_id) {
                         this.scanbackTid = first.trade_id;
                         current_page = this.scanbackTid + batchSize + 1;
-                        cacheOrFetch(current_page, process);
+                        setTimeout(function(){
+                            gdax_client.getProductTrades({'after': current_page, limit: batchSize}, process);
+                        }, delay);
                     } else {
                         this.scanback = false;
                         this.scanbackTid = 0;
@@ -337,7 +321,9 @@ Trader.prototype.getTrades = function(since, callback, descending) {
         this.scanback = true;
         if (this.scanbackTid) {
             current_page = this.scanbackTid + batchSize + 1;
-            cacheOrFetch(current_page, process);
+            setTimeout(function(){
+                gdax_client.getProductTrades({'after': current_page, limit: batchSize}, process);
+            }, delay);
         } else {
             log.debug('Scanning back in the history needed...');
             log.debug(moment.utc(since).format());

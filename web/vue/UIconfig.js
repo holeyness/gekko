@@ -15,7 +15,8 @@ const CONFIG = {
     port: 443,
     path: '/'
   },
-  adapter: 'sqlite'
+  adapter: 'sqlite',
+  debug: true
 }
 
 if(typeof window === 'undefined')

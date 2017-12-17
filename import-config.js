@@ -434,10 +434,10 @@ config.backtest = {
 config.importer = {
   daterange: {
     // NOTE: these dates are in UTC
-    from: "2016-12-11 00:00:00",
-    to: "2017-12-11 00:00:00",
+    from: "2017-06-27 00:00:00",
+    to: "2017-12-15 00:00:00"
   }
-             
+
 }
 
 // set this to true if you understand that Gekko will
