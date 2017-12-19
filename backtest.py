@@ -72,8 +72,8 @@ gekko_params = {
                                        "candleSize": 60,
                                        "historySize": 10
                                        },
-                    "backtest": {"daterange": {"from": "2017-11-13T02:05:00Z",
-                                               "to": "2017-12-14T03:05:00Z"}
+                    "backtest": {"daterange": {"from": "2016-12-13T02:05:00Z",
+                                               "to": "2017-12-13T03:05:00Z"}
                                  },
                     "performanceAnalyzer": {"riskFreeReturn": 2,
                                             "enabled": True}
