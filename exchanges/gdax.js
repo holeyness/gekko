@@ -221,9 +221,6 @@ Trader.prototype.cancelOrder = function(order, callback) {
     this.gdax.cancelOrder(order, this.normalizeResult(result));
 }
 
-var err_cache = {};
-var response_cache = {};
-var data_cache = {};
 
 Trader.prototype.getTrades = function(since, callback, descending) {
     var args = _.toArray(arguments);

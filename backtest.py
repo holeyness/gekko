@@ -1,12 +1,15 @@
 import requests
 import os
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import csv
-
 
 class Test:
     def __init__(self, strategy):
         self.short = 1
         self.long = 1
+        self.results = []
+        self.sample_result = {}
 
         self.strategy = strategy
         self.request_params = {}
@@ -22,14 +25,17 @@ class Test:
         self.request_params = compiled_params
 
     def execute(self):
-        for s in range(1, 50, 1):
+        for s in range(1, 60, 2):
             self.short = s
-            for l in range(1, 50, 1):
+            for l in range(1, 60, 2):
+                print("Current params: " + str(s) + " " + str(l))
                 self.long = l
 
                 self.make_params()
                 response = self.send_request()
                 self.parse_response(response)
+        self.write_to_csv()
+        print(self.best_params)
 
     def send_request(self):
         r = requests.post(self.request_params['url'], json=self.request_params['data'], verify=False,
@@ -40,10 +46,24 @@ class Test:
 
     def parse_response(self, response):
         report = response.json()["report"]
+        self.sample_result = report
+
+        list_to_write = [self.short, self.long]
+        list_to_write.extend(report.values())
+        self.results.append(list_to_write)
+
         if report["profit"] > self.best_params["profit"]:
             self.best_params = {"short": self.short, "long": self.long, "profit": report["profit"]}
-        print(self.best_params)
+            print(self.best_params)
 
+    def write_to_csv(self):
+        with open(self.strategy + ".csv", "w") as csv_file:
+            writer = csv.writer(csv_file, 'excel')
+            header_row = ["short", "long"]
+            header_row.extend(self.sample_result.keys())
+            writer.writerow(header_row)
+            for line in self.results:
+                writer.writerow(line)
 
 def main():
     test = Test("DEMA")
